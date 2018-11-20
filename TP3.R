@@ -2,7 +2,7 @@
 library(Matrix)
 
 ## Chargement de la base de données data.
-u.data <- read.csv(file = 'u.data.csv', sep='|', header=T)
+u.data <- read.csv(file = 'C:/Users/karl/Documents/R project/TP3/u.data.csv', sep='|', header=T)
 
 ## Construction de la matrice de vote.
 m <- sparseMatrix(u.data[,1],u.data[,2],x=u.data[,3])
@@ -227,7 +227,9 @@ itemItemCrossVal <- function(nb){
   m.train.normalise[is.infinite(m.train.normalise)] <- 0
   m.train.normalise[is.nan(m.train.normalise)] <- 0
   cosMat <- (t(m.train.normalise)%*%(m.train.normalise))
-  return(m.train.norm%*%cosMat/t(matrix(rowSums(abs(cosMat)),nrow=ncol(m.train.norm),ncol=nrow(m.train.norm)))+rMean)
+  pred<-m.train.norm%*%cosMat/t(matrix(rowSums(abs(cosMat)),nrow=ncol(m.train.norm),ncol=nrow(m.train.norm)))
+  pred[is.nan(pred)]<-0
+  return(pred+rMean)
   }
 
 matrix(c(1,2,3),nrow=3,ncol=6)
