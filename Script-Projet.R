@@ -1,111 +1,220 @@
-## Sources des données : https://www.kaggle.com/rdoume/beerreviews
-install.packages('dplyr')
-install.packages('ggplot2')
-install.packages('gridExtra')
-
 ## Appel du package Matrix.
 library(Matrix)
-library(dplyr)
-library(ggplot2)  
-library(gridExtra) 
 
-## Récupération de toutes les données.
-m.data <- read.csv('beer_reviews.csv')
-m.data <- m.data[m.data[,"review_profilename"]!="",]
+## Chargement de la base de données data.
+u.data <- read.csv(file = 'u.data.csv', sep='|', header=T)
 
+## Construction de la matrice de vote.
+m <- sparseMatrix(u.data[,1],u.data[,2],x=u.data[,3])
+m  <-as.matrix(m)
+rownames(m) <- paste('u', 1:nrow(m), sep='')
+colnames(m) <- paste('i', 1:ncol(m), sep='')
+m[m==0] <- NA
 
-userWithRand<-mutate(m.user,rand=runif(33388, 0.0, 1.0))
-userTraining<-filter(userWithRand,rand>0.9)
-m_easy<-inner_join(m.data,userTraining,by=c("review_profilename"="review_profilename"))
-## Extraction des données avec les moyennes de votes.
+###############
+##
+## Question 1 : Déterminez un point de comparaison pour la prévision de votes (une performance minimale).
+## 
+###############
 
-m.vote_style <- m.data %>%
-  group_by(review_profilename,beer_style)%>%
-  summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
+## Récupération de la moyenne des notes pour chaque films.
+cmean <- colMeans(m, na.rm=TRUE)
+rmean <- rowMeans(m, na.rm=TRUE)
+hist(colMeans(m, na.rm=TRUE))
+hist(rowMeans(m, na.rm=TRUE))
 
-m.user <- select(m.data,review_profilename) %>%
-  group_by(review_profilename) %>%
-  summarise(count=sum(!is.na(review_profilename)))
+## Création de la matrice de référence de la moyenne arythmétique des moyennes des colonnes et des lignes.
+meanMatrix <- (t(matrix(colMeans(m, na.rm=TRUE), ncol=nrow(m), nrow=ncol(m))) + rowMeans(m, na.rm=TRUE))/2
 
-m.user.best<-filter(m.user,count>=20)
+## Création des fonctions de calculs des Erreurs.
+meanAbsError <- function (m1,m2) {
+  return (mean(abs((m1 - m2)[(!is.na(m1-m2))])))
+}
+meanSquarError <- function (m1,m2){
+  return (sqrt(mean(((m1 - m2)[(!is.na(m1-m2))])^2, na.rm=T)))
+}
 
+## Calcul de l'Erreur Moyenne Absolue et de l'Erreur Quadratique Moyenne.
+baselineMeanError <- meanAbsError(meanMatrix,m)
+baselineSquarError<- meanSquarError(meanMatrix,m)
 
-m.data.best <- filter(m.data,review_profilename %in% unlist(m.user.best["review_profilename"]))
+## Résutat 1 :
+show(baselineMeanError)
+show(baselineSquarError)
 
+###############
+##
+## Question 2 : Appliquer la décomposition SVD (en prenant soin de normaliser au préalable).
+## 
+###############
 
-m_easy.vote_brewery <- m_easy %>%
-  group_by(review_profilename,brewery_id,brewery_name)%>%
-  summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
+mRef <- m
+mRef[is.na(mRef)] <- meanMatrix[is.na(mRef)]
 
+## Normalisation par la somme des lignes (comme défini dans l'article de référence) et Décomposition SVD.
+mNorm <- (mRef - rowMeans(mRef))
+mSvd <- svd(mNorm)
 
+## Résutat 2 :
+show(mSvd$u[1:5,1:5])
+show(mSvd$d[1:5])
+show(mSvd$v[1:5,1:5])
 
+###############
+##
+## Question 3 :  Effectuez l'estimation des votes sur la base de SVD avec 10 dimensions.
+## 
+###############
 
-m.beer <- select(m.data,beer_beerid,beer_name,beer_style,beer_abv,brewery_id,review_overall,review_aroma,review_appearance,review_palate,review_taste) %>%
- group_by(beer_beerid,beer_name,beer_style,beer_abv,brewery_id) %>%
- summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste), count=sum(!is.na(beer_beerid)))
+## Création de la fonction pour la diminution de dimensions.
+reduc <- function(msvd,dim){
+  return ( (msvd$u[,1:dim] %*% diag(msvd$d[1:dim]) %*% t(msvd$v)[1:dim,]) + rowMeans(mRef))
+}
 
-m.brewery <- select(m.data,brewery_id,brewery_name,review_overall,review_aroma,review_appearance,review_palate,review_taste) %>%
- group_by(brewery_id,brewery_name) %>%
- summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste),count=sum(!is.na(brewery_id)))
+## Application de la diminution de dimensions.
+m10 <- reduc(mSvd,10)
 
-m.vote <- select(m.data,beer_beerid,review_profilename,review_time,review_overall,review_aroma,review_appearance,review_palate,review_taste) %>%
- group_by(beer_beerid,review_profilename,review_time,review_overall,review_aroma,review_appearance,review_palate,review_taste) %>%
- summarise()
+## Résutat 3 :
+show(m10[1:5,1:5])
 
-m.user[,"review_profilename"]
+###############
+##
+## Question 4 : Calculez l'erreur absolue moyenne et l'erreur quadratique moyenne.
+## 
+###############
 
-help(Position)
+m10AbsError <- meanAbsError(m10,m)
+m10SquarError <- meanSquarError(m10,m)
 
-Position(m.user[,"review_profilename"]=="",m.user[,"review_profilename"])
+## Résutat 4 :
+show(m10AbsError)
+show(m10SquarError)
 
+###############
+##
+## Question 5 : Déterminez le nombre de dimensions optimal (sans appliquer de validation croisée). Un graphique doit indiquer la performance par nombre de dimension (semblable au rapport Sarwar et al.).
+## 
+###############
 
+possibledim <- seq(2,943,1)
+result <- sapply(possibledim, function(x, y) meanSquarError(reduc(mSvd,x),m), y=m)
 
-m.data[,"review_profilename"]
-m2=matrix(0,nrow=nrow(m.user.best),ncol=1)
-dim(m.user.best[,"review_profilename"])
-boboche<-((m.user.best[,"review_profilename"]))
+## Résutat 5 :
+plot(possibledim,result)
 
-rownames(m2)<-unlist(m.user.best[,"review_profilename"])
+###############
+##
+## Question 6 : Déterminez le nombre optimal de dimensions, mais en utilisant cette fois une validation croisée.
+## 
+###############
 
-m2[,1]=seq(1,nrow(m.user.best[,"review_profilename"]),1)
+mObserved <- which(!is.na(m))
+m.random <- sample(mObserved,length(mObserved))
 
+## Création de la fonction permettant de réaliser la décomposition SVD pour 1 repli de valeurs observées.
+svdOfCrossVal <- function(nb){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  m.train <- m
+  m.train[set.test] <- NA
+  m.colmean <- t(matrix(colMeans(m.train, na.rm=TRUE), ncol=nrow(m), nrow=ncol(m)))
+  m.train[is.na(m.train)] <- m.colmean[is.na(m.train)]
+  rMean <- rowMeans(m.train, na.rm=TRUE)
+  rMean[is.na(rMean)] <- 0
+  # Normalisation en soustrayant la moyenne des lignes aux valeurs (conformément à l'article)
+  m.train.norm <- (m.train-rMean)
+  m.train.norm[is.na(m.train.norm)] <- 0
+  return(svd(m.train.norm))
+}
 
-sapply(m.data[,"review_profilename"],toString)
+computeAllSVD <- function(set.test){
+  return(sapply(seq(1,10,1),FUN=svdOfCrossVal))
+}
 
+## Récupération des matrices décomposées pour tous les replis.
+SVDs <- computeAllSVD(set.test)
 
-m.data.best[1:10,8]
+## Création de la fonction permettant de reconstruire la matrice grâce à l'échantillon d'entrainement.
+reducForCrossVal <- function(trainSvd,dim,set.test){
+  m.train <- m
+  m.train[set.test] <- NA
+  m.colmean <- t(matrix(colMeans(m.train, na.rm=TRUE), ncol=nrow(m), nrow=ncol(m)))
+  m.train[is.na(m.train)] <- m.colmean[is.na(m.train)]
+  rMean <- rowMeans(m.train, na.rm=TRUE)
+  rMean[is.na(rMean)] <- 0
+  return(((matrix(unlist(trainSvd["u"]),ncol=nrow(m), nrow=nrow(m)))[,1:dim]%*%diag(unlist(trainSvd["d"])[1:dim])%*%t(matrix(unlist(trainSvd["v"]),ncol=ncol(m), nrow=ncol(m)))[1:dim,])+rMean)
+}
 
-m_palate.sparse <- sparseMatrix(sapply(m.data[,"review_profilename"],toString),],m.data.best[,"beer_beerid"],x=m.data.best[,"review_palate"],use.last.ij=TRUE)
-m_taste.sparse <- sparseMatrix(m2[m.data[,"review_profilename"],],m.data[,"beer_beerid"],x=m.data[,"review_taste"],use.last.ij=TRUE)
-m_appearance.sparse <- sparseMatrix(m2[m.data[,"review_profilename"],],m.data[,"beer_beerid"],x=m.data[,"review_appearance"],use.last.ij=TRUE)
-m_aroma.sparse <- sparseMatrix(m2[m.data[,"review_profilename"],],m.data[,"beer_beerid"],x=m.data[,"review_aroma"],use.last.ij=TRUE)
-m_overall.sparse <- sparseMatrix(m2[m.data[,"review_profilename"],],m.data[,"beer_beerid"],x=m.data[,"review_overall"],use.last.ij=TRUE)
+## Création des fonctions permettant de calculer les erreurs.
+calculateQuadrErr <- function(nb,dim){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  return(sum((reducForCrossVal(SVDs[,nb],dim,set.test)[set.test]-m[set.test])**2/length(m[set.test]))**(1/2))
+}
+calculateAbsErr<-function(nb,dim){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  return(sum(abs(reducForCrossVal(SVDs[,nb],dim,set.test)[set.test]-m[set.test])/length(m[set.test])))
+}
+crossVal <- function(dimension){
+  return(sum((sapply(c(1,2,3,4,5,6,7,8,9,10),calculateQuadrErr,dim=dimension)**2)/10)**(1/2))
+}
+crossValAbs <- function(dimension){
+  return(sum(abs(sapply(c(1,2,3,4,5,6,7,8,9,10),calculateAbsErr,dim=dimension))/10))
+}
 
-m_palate.normalise <- m_palate.sparse/(t(matrix(colSums(m_palate.sparse**2),nrow=ncol(m_palate.sparse),ncol=nrow(m_palate.sparse)))**(1/2) )
+possibledim <- seq(2,20,1)
 
-colSums(m_palate.sparse**2)
+resultErrorSquar <- sapply(possibledim,crossVal)
+resultErrorAbs <- sapply(possibledim,crossValAbs)
 
-(t(matrix(0,nrow=ncol(m_palate.sparse),ncol=nrow(m_palate.sparse))))
+## Résutat 6 :
+plot(possibledim,resultErrorSquar)
+plot(possibledim,resultErrorAbs)
+
+###############
+##
+## Question 7 : Comparez la performance de cette approche avec celle d'une approche collaborative de votre choix (avec l'erreur quadratique et erreur absolue moyennes). Utilisez une validation croisée.
+## 
+###############
+
+## Création de la fonction permettant de récupérer la matrice avec les prédictions en fonction du numéro du repli.
+itemItemCrossVal <- function(nb){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  m.train <- m
+  m.train[set.test] <- NA
+  rMean <- rowMeans(m.train, na.rm=TRUE)
+  rMean[is.na(rMean)] <- 0
+  m.train[is.na(m.train)] <- 0
+  m.train.normalise <- m.train/(t(matrix(colSums(m.train**2),nrow=ncol(m.train),ncol=nrow(m.train)))**(1/2) )
   
-rownames(m.sparse) <- paste('u', 1:nrow(m.sparse), sep='')
-colnames(m.sparse) <- paste('i', 1:ncol(m.sparse), sep='')
+  #On élimine les valeurs aberrantes
+  m.train.normalise[is.infinite(m.train.normalise)] <- 0
+  m.train.normalise[is.nan(m.train.normalise)] <- 0
+  cosMat <- (t(m.train.normalise)%*%(m.train.normalise))
+  
+  m.train.centr <- (m.train-rMean)
+  m.train.centr[is.na(m.train.centr)] <- 0
+  
+  #On ignore les valeurs n'ayant pas de votes
+  m.train.centr[m.train==0] <- 0
+  
+  #On divise par la somme des cosinus des items partageant un vote commun
+  pred<-(m.train.centr%*%cosMat)/((m.train!=0)%*%abs(cosMat))
+  pred[is.nan(pred)]<-0
+  return(pred+rMean)
+}
 
+## Création des fonctions permettant de calculer les erreurs.
+itemItemCrossValQuadrErr <- function(nb){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  return(sum((itemItemCrossVal(nb)[set.test]-m[set.test])**2/length(m[set.test]))**(1/2))
+}
+itemItemCrossValAbsErr <- function(nb){
+  set.test <- m.random[((nb-1)*length(m.random)/10):(nb*length(m.random)/10)]
+  return(sum(abs(itemItemCrossVal(nb)[set.test]-m[set.test])/length(m[set.test])))
+}
 
-## Identification du nombre de bières et d'utilisateurs différents.
-nbVotesPerBeer<-m.data %>% 
-  count(beer_beerid)
-nbVotesPerUser<-m.data %>% 
-  count(review_profilename)
+resultErrorAbsItem <- mean(sapply(seq(1,10,1),itemItemCrossValAbsErr))
+resultErrorSquarItem <- mean(sapply(seq(1,10,1),itemItemCrossValQuadrErr)**2)**(1/2)
 
-## Visualisation du pannel de bières et du pannel d'utilisateur.
-qplot(nbVotesPerBeer$n, log = "xy", geom = "histogram",xlab="Nombre de votes",ylab="Bières")
-qplot(nbVotesPerUser$n, log = "xy", geom = "histogram",xlab="Nombre de votes",ylab="Utilisateurs")
-
-#Test de recherches rapides
-m.beer_best<-filter(m.beer,count>100)
-m.data %>% 
-  max(review_time)
-m.data %>% 
-  group_by() %>% 
-  summarise(min = min(review_time))
-m_palate.sparse[1,]
+## Résutat 7 :
+show(resultErrorAbsItem)
+show(resultErrorSquarItem)
