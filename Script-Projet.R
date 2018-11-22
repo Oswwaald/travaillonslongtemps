@@ -1,13 +1,9 @@
 ## Sources des données : https://www.kaggle.com/rdoume/beerreviews
 install.packages('dplyr')
-install.packages('ggplot2')
-install.packages('gridExtra')
 
 ## Appel du package Matrix.
 library(Matrix)
 library(dplyr)
-library(ggplot2)
-library(gridExtra) 
 
 ## Récupération de toutes les données.
 m.data <- read.csv('beer_reviews.csv', stringsAsFactors = FALSE)
@@ -17,6 +13,8 @@ m.data <- m.data[m.data[,"review_profilename"]!="",]
 m.user <- select(m.data,review_profilename) %>%
   group_by(review_profilename) %>%
   summarise(count=sum(!is.na(review_profilename)))
+m.user <-filter(m.user,count>=100)
+m.data <- filter(m.data,review_profilename %in% unlist(m.user["review_profilename"]))
 
 userMap=0
 userMap=matrix(0,nrow=nrow(m.user),ncol=1)
@@ -26,7 +24,6 @@ userMap[,1]=seq(1,nrow(m.user[,"review_profilename"]),1)
 ##
 ## Calcul des matrice creuse des votes sur la moyenne des styles.
 ##
-
 m.vote_style <- m.data %>%
   group_by(review_profilename,beer_style)%>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
@@ -35,93 +32,48 @@ m.style <- select(m.data,beer_style) %>%
   group_by(beer_style) %>%
   summarise(count=sum(!is.na(beer_style)))
 
-styleMap=0
-styleMap=matrix(0,nrow=nrow(m.style),ncol=1)
-rownames(styleMap)<-unlist(m.style[,"beer_style"])
-styleMap[,1]=seq(1,nrow(m.style[,"beer_style"]),1)
-m.vote_style[, "review_profilename"]
+styleMap <- matrix(0,nrow=nrow(m.style),ncol=1)
+rownames(styleMap) <- unlist(m.style[,"beer_style"])
+styleMap[,1]< - seq(1,nrow(m.style[,"beer_style"]),1)
 
-m_style_palate.sparse <- sparseMatrix(userMap[unlist(m.vote_style[,"review_profilename"]),],styleMap[unlist(m.vote_style[,"beer_style"]),],x=unlist(m.vote_style[,"mean_palate"]),use.last.ij=TRUE)
-m_style_taste.sparse <- sparseMatrix(userMap[unlist(m.vote_style[,"review_profilename"]),],styleMap[unlist(m.vote_style[,"beer_style"]),],x=unlist(m.vote_style[,"mean_taste"]),use.last.ij=TRUE)
-m_style_appearance.sparse <- sparseMatrix(userMap[unlist(m.vote_style[,"review_profilename"]),],styleMap[unlist(m.vote_style[,"beer_style"]),],x=unlist(m.vote_style[,"mean_appearance"]),use.last.ij=TRUE)
-m_style_aroma.sparse <- sparseMatrix(userMap[unlist(m.vote_style[,"review_profilename"]),],styleMap[unlist(m.vote_style[,"beer_style"]),],x=unlist(m.vote_style[,"mean_aroma"]),use.last.ij=TRUE)
-m_style_overall.sparse <- sparseMatrix(userMap[unlist(m.vote_style[,"review_profilename"]),],styleMap[unlist(m.vote_style[,"beer_style"]),],x=unlist(m.vote_style[,"mean"]),use.last.ij=TRUE)
+## Fonction magique
+cosTypeFunction <- function(data,typeMap,mVoteCriteria,meanCriteria){
+  m_style_palate.sparse <- sparseMatrix(userMap[unlist(mVoteCriteria[,"review_profilename"]),],typeMap[unlist(mVoteCriteria[,2]),],x=unlist(mVoteCriteria[,meanCriteria]),use.last.ij=TRUE)
+  m_style_palate.normalise <- m_style_palate.sparse/(t(matrix(colSums(m_style_palate.sparse**2),nrow=ncol(m_style_palate.sparse),ncol=nrow(m_style_palate.sparse)))**(1/2) )
+  m_style_palate.normalise[is.na(m_style_palate.normalise)]<-0
+  cos_style_palate<-t(m_style_palate.normalise)%*%m_style_palate.normalise
+  cos_style_real_palate<-matrix(cos_style_palate,nrow=nrow(cos_style_palate),ncol=ncol(cos_style_palate))
+  return (cos_style_real_palate)
+}
 
 ## Calcul des cosinus pour les Styles avec tous les votes des utilisateurs.
-m_style_palate.normalise <- m_style_palate.sparse/(t(matrix(colSums(m_style_palate.sparse**2),nrow=ncol(m_style_palate.sparse),ncol=nrow(m_style_palate.sparse)))**(1/2) )
-m_style_palate.normalise[is.na(m_style_palate.normalise)]<-0
-cos_style_palate<-t(m_style_palate.normalise)%*%m_style_palate.normalise
-cos_style_real_palate<-matrix(cos_style_palate,nrow=nrow(cos_style_palate),ncol=ncol(cos_style_palate))
-
-m_style_taste.normalise <- m_style_taste.sparse/(t(matrix(colSums(m_style_taste.sparse**2),nrow=ncol(m_style_taste.sparse),ncol=nrow(m_style_taste.sparse)))**(1/2) )
-m_style_taste.normalise[is.na(m_style_taste.normalise)]<-0
-cos_style_taste<-t(m_style_taste.normalise)%*%m_style_taste.normalise
-cos_style_real_taste<-matrix(cos_style_taste,nrow=nrow(cos_style_taste),ncol=ncol(cos_style_taste))
-
-m_style_appearance.normalise <- m_style_appearance.sparse/(t(matrix(colSums(m_style_appearance.sparse**2),nrow=ncol(m_style_appearance.sparse),ncol=nrow(m_style_appearance.sparse)))**(1/2) )
-m_style_appearance.normalise[is.na(m_style_appearance.normalise)]<-0
-cos_style_appearance<-t(m_style_appearance.normalise)%*%m_style_appearance.normalise
-cos_style_real_appearance<-matrix(cos_style_appearance,nrow=nrow(cos_style_appearance),ncol=ncol(cos_style_appearance))
-
-m_style_aroma.normalise <- m_style_aroma.sparse/(t(matrix(colSums(m_style_aroma.sparse**2),nrow=ncol(m_style_aroma.sparse),ncol=nrow(m_style_aroma.sparse)))**(1/2) )
-m_style_aroma.normalise[is.na(m_style_aroma.normalise)]<-0
-cos_style_aroma<-t(m_style_aroma.normalise)%*%m_style_aroma.normalise
-cos_style_real_aroma<-matrix(cos_style_aroma,nrow=nrow(cos_style_aroma),ncol=ncol(cos_style_aroma))
+cos_style_palate <- cosTypeFunction(m.data,styleMap,m.vote_style,"mean_palate")
+cos_style_taste <- cosTypeFunction(m.data,styleMap,m.vote_style,"mean_taste")
+cos_style_appareance <- cosTypeFunction(m.data,styleMap,m.vote_style,"mean_appearance")
+cos_style_aroma <- cosTypeFunction(m.data,styleMap,m.vote_style,"mean_aroma")
+#cos_style_overall <- cosTypeFunction(m.data,styleMap,m.vote_style,"mean_overall")
 
 ##
 ## Calcul des matrice creuse des votes sur la moyenne des brasseries.
 ##
-
-m.user.best<-filter(m.user,count>=100)
-m.data.best <- filter(m.data,review_profilename %in% unlist(m.user.best["review_profilename"]))
-
-userMap=0
-userMap=matrix(0,nrow=nrow(m.user.best),ncol=1)
-rownames(userMap)<-unlist(m.user.best[,"review_profilename"])
-userMap[,1]=seq(1,nrow(m.user.best[,"review_profilename"]),1)
-
-
-m.vote_brewery <- m.data.best %>%
+m.vote_brewery <- m.data %>%
   group_by(review_profilename,brewery_id) %>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
 
-m.brewery <- select(m.data.best,brewery_id) %>%
+m.brewery <- select(m.data,brewery_id) %>%
   group_by(brewery_id) %>%
   summarise(count=sum(!is.na(brewery_id)))
 
-breweryMap=0
-breweryMap=matrix(0,nrow=nrow(m.brewery),ncol=1)
-rownames(breweryMap)<-unlist(m.brewery[,"brewery_id"])
-breweryMap[,1]=seq(1,nrow(m.brewery[,"brewery_id"]),1)
-m.vote_brewery[, "review_profilename"]
-
-m_brewery_palate.sparse <- sparseMatrix(userMap[unlist(m.vote_brewery[,"review_profilename"]),],breweryMap[sapply(unlist(m.vote_brewery[,"brewery_id"]),toString),],x=unlist(m.vote_brewery[,"mean_palate"]),use.last.ij=TRUE)
-m_brewery_taste.sparse <- sparseMatrix(userMap[unlist(m.vote_brewery[,"review_profilename"]),],breweryMap[sapply(unlist(m.vote_brewery[,"brewery_id"]),toString),],x=unlist(m.vote_brewery[,"mean_taste"]),use.last.ij=TRUE)
-m_brewery_appearance.sparse <- sparseMatrix(userMap[unlist(m.vote_brewery[,"review_profilename"]),],breweryMap[sapply(unlist(m.vote_brewery[,"brewery_id"]),toString),],x=unlist(m.vote_brewery[,"mean_appearance"]),use.last.ij=TRUE)
-m_brewery_aroma.sparse <- sparseMatrix(userMap[unlist(m.vote_brewery[,"review_profilename"]),],breweryMap[sapply(unlist(m.vote_brewery[,"brewery_id"]),toString),],x=unlist(m.vote_brewery[,"mean_aroma"]),use.last.ij=TRUE)
-m_brewery_overall.sparse <- sparseMatrix(userMap[unlist(m.vote_brewery[,"review_profilename"]),],breweryMap[sapply(unlist(m.vote_brewery[,"brewery_id"]),toString),],x=unlist(m.vote_brewery[,"mean"]),use.last.ij=TRUE)
+breweryMap <- matrix(0,nrow=nrow(m.brewery),ncol=1)
+rownames(breweryMap) <- unlist(m.brewery[,"brewery_id"])
+breweryMap[,1] <- seq(1,nrow(m.brewery[,"brewery_id"]),1)
 
 ## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
-m_brewery_palate.normalise <- m_brewery_palate.sparse/(t(matrix(colSums(m_brewery_palate.sparse**2),nrow=ncol(m_brewery_palate.sparse),ncol=nrow(m_brewery_palate.sparse)))**(1/2) )
-m_brewery_palate.normalise[is.na(m_brewery_palate.normalise)]<-0
-cos_brewery_palate<-t(m_brewery_palate.normalise)%*%m_brewery_palate.normalise
-cos_brewery_real_palate<-matrix(cos_brewery_palate,nrow=nrow(cos_brewery_palate),ncol=ncol(cos_brewery_palate))
-
-m_brewery_taste.normalise <- m_brewery_taste.sparse/(t(matrix(colSums(m_brewery_taste.sparse**2),nrow=ncol(m_brewery_taste.sparse),ncol=nrow(m_brewery_taste.sparse)))**(1/2) )
-m_brewery_taste.normalise[is.na(m_brewery_taste.normalise)]<-0
-cos_brewery_taste<-t(m_brewery_taste.normalise)%*%m_brewery_taste.normalise
-cos_brewery_real_taste<-matrix(cos_brewery_taste,nrow=nrow(cos_brewery_taste),ncol=ncol(cos_brewery_taste))
-
-m_brewery_appearance.normalise <- m_brewery_appearance.sparse/(t(matrix(colSums(m_brewery_appearance.sparse**2),nrow=ncol(m_brewery_appearance.sparse),ncol=nrow(m_brewery_appearance.sparse)))**(1/2) )
-m_brewery_appearance.normalise[is.na(m_brewery_appearance.normalise)]<-0
-cos_brewery_appearance<-t(m_brewery_appearance.normalise)%*%m_brewery_appearance.normalise
-cos_brewery_real_appearance<-matrix(cos_brewery_appearance,nrow=nrow(cos_brewery_appearance),ncol=ncol(cos_brewery_appearance))
-
-m_brewery_aroma.normalise <- m_brewery_aroma.sparse/(t(matrix(colSums(m_brewery_aroma.sparse**2),nrow=ncol(m_brewery_aroma.sparse),ncol=nrow(m_brewery_aroma.sparse)))**(1/2) )
-m_brewery_aroma.normalise[is.na(m_brewery_aroma.normalise)]<-0
-cos_brewery_aroma<-t(m_brewery_aroma.normalise)%*%m_brewery_aroma.normalise
-cos_brewery_real_aroma<-matrix(cos_brewery_aroma,nrow=nrow(cos_brewery_aroma),ncol=ncol(cos_brewery_aroma))
-
+cos_brewery_palate <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_palate")
+cos_brewery_taste <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_taste")
+cos_brewery_appareance <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_appearance")
+cos_brewery_aroma <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_aroma")
+#cos_brewery_overall <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_overall")
 
 
 
@@ -163,7 +115,6 @@ userMap=0
 userMap=matrix(0,nrow=nrow(m.user.best),ncol=1)
 rownames(userMap)<-unlist(m.user.best[,"review_profilename"])
 userMap[,1]=seq(1,nrow(m.user.best[,"review_profilename"]),1)
-
 
 beerMap=0
 beerMap=matrix(0,nrow=nrow(m.beer.best),ncol=1)
