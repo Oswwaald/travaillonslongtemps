@@ -3,7 +3,6 @@ install.packages('dplyr')
 
 ## Appel du package Matrix.
 library(Matrix)
-install.packages('dgCMatrix')
 library(dplyr)
 
 ## Récupération de toutes les données.
@@ -89,7 +88,7 @@ count_style <- countFunction(styleMap,m.vote_style,"mean")
 ##
 
 #Userbest pour les brewery
-m.user.best <-filter(m.user,count>=100)
+m.user.best <-filter(m.user,count>=50)
 m.data.best <- filter(m.data,review_profilename %in% unlist(m.user.best["review_profilename"]))
 #
 
@@ -99,7 +98,7 @@ rownames(userMap.best)<-unlist(m.user.best[,"review_profilename"])
 userMap.best[,1]=seq(1,nrow(m.user.best[,"review_profilename"]),1)
 
 
-m.vote_brewery <- m.data %>%
+m.vote_brewery <- m.data.best %>%
   group_by(review_profilename,brewery_id) %>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
 
@@ -121,6 +120,7 @@ cos_brewery_aroma <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean
 #write.csv(cos_brewery_taste,"cos_brewery_taste.csv", row.names = FALSE, sep=",")
 #write.csv(cos_brewery_appareance,"cos_brewery_appareance.csv", row.names = FALSE, sep=",")
 #write.csv(cos_brewery_aroma,"cos_brewery_aroma.csv", row.names = FALSE, sep=",")
+
 
 #User et data pour les brewery Oswald
 m.brewery <- select(m.data,brewery_id) %>%
