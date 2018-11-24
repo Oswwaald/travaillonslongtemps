@@ -1,15 +1,16 @@
-## Sources des donnÈes : https://www.kaggle.com/rdoume/beerreviews
+## Sources des donn√©es : https://www.kaggle.com/rdoume/beerreviews
 install.packages('dplyr')
 
 ## Appel du package Matrix.
 library(Matrix)
+install.packages('dgCMatrix')
 library(dplyr)
 
-## RÈcupÈration de toutes les donnÈes.
+## R√©cup√©ration de toutes les donn√©es.
 m.data <- read.csv('beer_reviews.csv', stringsAsFactors = FALSE)
 m.data <- m.data[m.data[,"review_profilename"]!="",]
 
-## Extraction des donnÈes avec les moyennes de votes.
+## Extraction des donn√©es avec les moyennes de votes.
 m.user <- select(m.data,review_profilename) %>%
   group_by(review_profilename) %>%
   summarise(count=sum(!is.na(review_profilename)))
@@ -20,7 +21,7 @@ m.beer <- select(m.data,beer_beerid,beer_name,beer_style,beer_abv,brewery_id,rev
   #En prenant les moyennes de vote dans m.beer.
   #summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste), count=sum(!is.na(beer_beerid)))
 
-## RÈduction des matrices afin de simplifier les calculs et les temps de calculs.......
+## R√©duction des matrices afin de simplifier les calculs et les temps de calculs.......
 m.user <- filter(m.user, count>300)
 ##### sans filtre : 33387 Users.
 m.beer <- filter (m.beer, count>300)
@@ -28,7 +29,7 @@ m.beer <- filter (m.beer, count>300)
 m.data <- filter(filter(m.data,review_profilename %in% unlist(m.user["review_profilename"])),beer_beerid %in% unlist(m.beer["beer_beerid"]))
 ##### sans filtre : 1 586 614 Observations.
 
-## Cosinus en fonction du type et du critËre ÈvaluÈ.
+## Cosinus en fonction du type et du crit√®re √©valu√©.
 cosTypeFunction <- function(data,typeMap,mVoteCriteria,meanCriteria){
   m_type.sparse <- sparseMatrix(userMap[unlist(mVoteCriteria[,"review_profilename"]),],typeMap[sapply(unlist(mVoteCriteria[,2]),toString),],x=unlist(mVoteCriteria[,meanCriteria]),use.last.ij=TRUE)
   m_type.normalise <- m_type.sparse/(t(matrix(colSums(m_type.sparse**2),nrow=ncol(m_type.sparse),ncol=nrow(m_type.sparse)))**(1/2) )
@@ -37,7 +38,7 @@ cosTypeFunction <- function(data,typeMap,mVoteCriteria,meanCriteria){
   cos_type_mat<-matrix(cos_type,nrow=nrow(cos_type),ncol=ncol(cos_type))
   return (cos_type_mat)
 }
-## Somme du nombre d'utilisateur votant par type et critËre.
+## Somme du nombre d'utilisateur votant par type et crit√®re.
 countFunction <- function(typeMap,mVoteCriteria,meanCriteria){
   m_type.sparse <- sparseMatrix(userMap[unlist(mVoteCriteria[,"review_profilename"]),],typeMap[sapply(unlist(mVoteCriteria[,2]),toString),],x=unlist(mVoteCriteria[,meanCriteria]),use.last.ij=TRUE)
   binarym<-(m_type.sparse!=0)
@@ -148,18 +149,19 @@ count_brewery <- countFunction(breweryMap,m.vote_brewery,"mean")
 ##
 ## Calcul des matrice creuse des votes sur la moyenne des brasseries.
 ##
+round(5.5)
 m.abv <- select(m.data,beer_abv) %>%
-  group_by(beer_abv) %>%
+  group_by(beer_abv=round(beer_abv)) %>%
   summarise(count=sum(!is.na(beer_abv)))
 
 m.vote_abv <- m.data %>%
-  group_by(review_profilename,beer_abv) %>%
+  group_by(review_profilename,beer_abv=round(beer_abv)) %>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
 
 abvMap <- 0
 abvMap <- matrix(0,nrow=nrow(m.abv),ncol=1)
 colnames(abvMap) <- "abv.id"
-rownames(abvMap) <- sapply(unlist(m.abv[,"beer_abv"]),toString)
+rownames(abvMap) <- sapply(unlist(m.abv[,"beer_abv"]),round)
 abvMap[,1] <- seq(1,nrow(m.abv[,"beer_abv"]),1)
 
 ## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
@@ -170,15 +172,9 @@ cos_abv_aroma <- cosTypeFunction(m.data,abvMap,m.vote_abv,"mean_aroma")
 cos_brewery_overall <- cosTypeFunction(m.data,abvMap,m.vote_abv,"mean")
 
 ##
-## MÈthode ItemItem
+## M√©thode ItemItem
 ##
 
-m.user.rand <- m.user[(runif(nrow(m.user), 0.0, 1.0)>0.8),]
-m.data.rand <- filter(m.data,review_profilename %in% unlist(m.user.rand["review_profilename"]))
-
-userMap[,1] <- seq(1,nrow(m.user[,"review_profilename"]),1)
-
-m.pred <- m.data[userMap[unlist(m.user.rand[,1]),1],]
 
 breweryMap2 <- 0
 breweryMap2 <- matrix(0,nrow=nrow(m.brewery),ncol=1)
@@ -199,26 +195,83 @@ beerMap[,1] <- seq(1,nrow(m.beer[,"beer_beerid"]),1)
 beerAndBreweryMap <- sparseMatrix(breweryMap2[sapply(unlist(m.beer[,"brewery_id"]),function(x) paste("u",x,sep="")),"index.brewery"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),"index.beer"],x=1,use.last.ij=TRUE)
 
 beerAndStyleMap <- sparseMatrix(styleMap[unlist(m.beer[,"beer_style"]),"style.id"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),"index.beer"],x=1,use.last.ij=TRUE)
-#beerAndStyleMap[1,]
 rowSums(beerAndStyleMap)
 colSums(beerAndStyleMap)
-beerAndAbvMap <- sparseMatrix(abvMap[unlist(m.beer[,"beer_abv"]),"abv.id"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),"index.beer"],x=1,use.last.ij=TRUE)
+
+abvMap2 <- 0
+abvMap2 <- matrix(0,nrow=nrow(m.abv),ncol=1)
+colnames(abvMap2) <- "abv.id"
+rownames(abvMap2) <- sapply(unlist(m.abv[,"beer_abv"]),function(x) paste("a",x,sep=""))
+abvMap2[,1] <- seq(1,nrow(m.abv[,"beer_abv"]),1)
+
+beerAndAbvMap <- sparseMatrix(abvMap2[sapply(unlist(m.beer[,"beer_abv"]),function(x) paste("a",round(x),sep="")),"abv.id"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",round(x),sep="")),"index.beer"],x=1,use.last.ij=TRUE)
+beerAndAbvMap[1:10,1:10]
+
 rowSums(beerAndAbvMap)
 colSums(beerAndAbvMap)
 
 sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep=""))
 
 rowSums(beerAndBrewMap)
-m.pred[,"review_profilename"]
-m_taste.sparse
-## Identification du nombre de biËres et d'utilisateurs diffÈrents.
+
+
+
+
+######### PREDICTION
+
+m.user.rand <- m.user[(runif(nrow(m.user), 0.0, 1.0)>0.8),]
+m.data.rand <- filter(m.data,review_profilename %in% unlist(m.user.rand["review_profilename"]))
+
+userMap=0
+userMap=matrix(0,nrow=nrow(m.user.rand),ncol=1)
+rownames(userMap)<-unlist(m.user.rand[,"review_profilename"])
+userMap[,1]=seq(1,nrow(m.user.rand[,"review_profilename"]),1)
+
+######### PREDICTION STYLEEEEEEEEEE
+
+#m_palate.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_palate"],use.last.ij=TRUE)
+m_taste.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_taste"],use.last.ij=TRUE)
+#m_appearance.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_appearance"],use.last.ij=TRUE)
+#m_aroma.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_aroma"],use.last.ij=TRUE)
+#m_overall.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_overall"],use.last.ij=TRUE)
+
+m_taste.sparse[m_taste.sparse==0]<-NA
+rMean_taste <- rowMeans(m_taste.sparse, na.rm=TRUE)
+rMean_taste[is.na(rMean_taste)] <- 0
+m_taste.sparse.centr<-m_taste.sparse-rMean_taste
+m_taste.sparse[is.na(m_taste.sparse)]<-0
+m_taste.sparse.centr[is.na(m_taste.sparse.centr)]<-0
+
+typeVoteCount <- (m_taste.sparse>0) %*% t(beerAndStyleMap)
+voteOfStyle <-(m_taste.sparse.centr %*% t(beerAndStyleMap))/typeVoteCount
+voteOfStyle[is.na(voteOfStyle)]<-0
+m_taste.pred<-(voteOfStyle%*%cos_style_taste)/((voteOfStyle>0)%*%cos_style_taste)
+m_taste.pred.final<-m_taste.pred+rMean_taste
+
+######### PREDICTION BRASSERIEEEEEEEEE
+
+rMean_palate <- rowMeans(m_palate.sparse, na.rm=TRUE)
+rMean_palate[is.na(rMean_palate)] <- 0
+
+typeVoteCountBrewery <- (m_taste.sparse>0) %*% t(beerAndBreweryMap)
+voteOfStyleBrewery <-(m_taste.sparse.centr %*% t(beerAndBreweryMap))/typeVoteCountBrewery
+voteOfStyleBrewery[is.na(voteOfStyleBrewery)]<-0
+m_palate.pred.brewery<-(voteOfStyleBrewery%*%cos_brewery_palate)/((voteOfStyleBrewery>0)%*%cos_brewery_palate)
+m_palate.pred.final.brewery<-m_palate.pred.brewery+rMean_palate
+
+
+#Verification ::::
+test <- sapply(1:nrow(m_palate.pred.final.brewery),function(x) max(m_palate.pred.final.brewery[x,])-min(m_palate.pred.final.brewery[x,]))
+
+## Identification du nombre de bi√®res et d'utilisateurs diff√©rents.
 nbVotesPerBeer <- m.data %>% 
   count(beer_beerid)
 nbVotesPerUser <- m.data %>% 
   count(review_profilename)
 
-## Visualisation du pannel de biËres et du pannel d'utilisateur.
-qplot(nbVotesPerBeer$n, log = "xy", geom = "histogram",xlab="Nombre de votes",ylab="BiËres")
+
+## Visualisation du pannel de bi√®res et du pannel d'utilisateur.
+qplot(nbVotesPerBeer$n, log = "xy", geom = "histogram",xlab="Nombre de votes",ylab="Bi√®res")
 qplot(nbVotesPerUser$n, log = "xy", geom = "histogram",xlab="Nombre de votes",ylab="Utilisateurs")
 
 #Test de recherches rapides
@@ -229,3 +282,11 @@ m.data %>%
   group_by() %>% 
   summarise(min = min(review_time))
 m_palate.sparse[1,]
+
+#Moyenne en fonction des crit√®res sur l'ensemble de la base
+overallMean <- mean(m.data[,4]) #3.893478
+aromaMean <- mean(m.data[,5]) #3.831061
+appearanceMean <- mean(m.data[,6]) #3.925168
+palateMean <- mean(m.data[,9]) #3.838386
+tasteMean <-mean(m.data[,10]) #3.885663
+totalMean <- (overallMean + aromaMean + appearanceMean + palateMean + tasteMean)/5 #3.874751
