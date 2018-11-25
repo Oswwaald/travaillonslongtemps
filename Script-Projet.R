@@ -51,6 +51,7 @@ cosTypeFunction <- function(userMap,typeMap,typeIdConfFun,mVoteCriteria,meanCrit
   return (cos_type_mat)
 }
 
+## Extraction des utisateurs avec index sans ajout de string.
 extWithIndexSimple <- function(m.info,type){
   Map <- matrix(0,nrow=nrow(m.info),ncol=1)
   rownames(Map) <- unlist(m.info[,type])
@@ -58,6 +59,7 @@ extWithIndexSimple <- function(m.info,type){
   return (Map)
 }
 
+## Extraction des utisateurs avec index avec ajout de string.
 extWithIndexComplex <- function(m.info,type,typeIdConfFun){
   Map <- matrix(0,nrow=nrow(m.info),ncol=1)
   rownames(Map) <- sapply(unlist(m.info[,type]),typeIdConfFun)
@@ -67,16 +69,17 @@ extWithIndexComplex <- function(m.info,type,typeIdConfFun){
 
 ###############
 ##
-## Extraction des utisateurs avec index.
+## Détermination des matrices cosinus en fonction des Attributs et des Critères de notation.
 ##
 ###############
 
 userMap <- extWithIndexSimple(m.user,"review_profilename")
 userMap.best <- extWithIndexSimple(m.user.best,"review_profilename")
 
-##
-## Calcul des matrice creuse des votes sur la moyenne des styles.
-##
+beerIdConfFun <- function(x) paste("b",x,sep="")
+beerMap2 <- extWithIndexComplex(m.beer,"beer_beerid",beerIdConfFun)
+
+## Prépapation des données contenant tous les styles, les moyennes par utilisateurs par style et l'indexation des styles.
 m.style <- select(m.data,beer_style) %>%
   group_by(beer_style) %>%
   summarise(count=sum(!is.na(beer_style)))
@@ -88,16 +91,14 @@ m.vote_style <- m.data %>%
 styleIdConfFun <- toString
 styleMap <- extWithIndexSimple(m.style,"beer_style")
 
-## Calcul des cosinus pour les Styles avec tous les votes des utilisateurs.
+## Calcul des cosinus pour les Styles et les différents critères.
 cos_style_palate <- cosTypeFunction(userMap,styleMap,styleIdConfFun,m.vote_style,"mean_palate")
 cos_style_taste <- cosTypeFunction(userMap,styleMap,styleIdConfFun,m.vote_style,"mean_taste")
 cos_style_appareance <- cosTypeFunction(userMap,styleMap,styleIdConfFun,m.vote_style,"mean_appearance")
 cos_style_aroma <- cosTypeFunction(userMap,styleMap,styleIdConfFun,m.vote_style,"mean_aroma")
 cos_style_overall <- cosTypeFunction(userMap,styleMap,styleIdConfFun,m.vote_style,"mean")
 
-##
-## Calcul des matrice creuse des votes sur la moyenne des brasseries.
-##
+## Prépapation des données contenant tous les brasseries, les moyennes par utilisateurs par brasserie et l'indexation des brasseries.
 m.brewery <- select(m.data,brewery_id) %>%
   group_by(brewery_id) %>%
   summarise(count=sum(!is.na(brewery_id)))
@@ -109,17 +110,14 @@ m.vote_brewery <- m.data.best %>%
 brewIdConfFun <- function(x) paste("u",x,sep="")
 breweryMap <- extWithIndexComplex(m.brewery,"brewery_id",brewIdConfFun)
 
-#################### Mettre usermapbest dans la fonction
-## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
+## Calcul des cosinus pour les Brasseries et les différents critères.
 cos_brewery_palate <- cosTypeFunction(userMap.best,breweryMap,brewIdConfFun,m.vote_brewery,"mean_palate")
 cos_brewery_taste <- cosTypeFunction(userMap.best,breweryMap,brewIdConfFun,m.vote_brewery,"mean_taste")
 cos_brewery_appareance <- cosTypeFunction(userMap.best,breweryMap,brewIdConfFun,m.vote_brewery,"mean_appearance")
 cos_brewery_aroma <- cosTypeFunction(userMap.best,breweryMap,brewIdConfFun,m.vote_brewery,"mean_aroma")
 cos_brewery_overall <- cosTypeFunction(userMap.best,breweryMap,brewIdConfFun,m.vote_brewery,"mean")
 
-##
-## Calcul des matrice creuse des votes sur la moyenne des brasseries.
-##
+## Prépapation des données contenant tous les abv, les moyennes par utilisateurs par abv et l'indexation des abv.
 m.abv <- select(m.data,beer_abv) %>%
   group_by(beer_abv=round(beer_abv)) %>%
   summarise(count=sum(!is.na(beer_abv)))
@@ -128,55 +126,26 @@ m.vote_abv <- m.data %>%
   group_by(review_profilename,beer_abv=round(beer_abv)) %>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
 
-abvIdConfFun <- function(x) toString(round(x))
-breweryMap <- extWithIndexComplex(m.brewery,"brewery_id",brewIdConfFun)
+abvIdConfFun <- function(x) paste("a",x,sep="")
+abvMap <- extWithIndexComplex(m.abv,"beer_abv",abvIdConfFun)
 
-## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
+## Calcul des cosinus pour les Abv et les différents critères.
 cos_abv_palate <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean_palate")
 cos_abv_taste <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean_taste")
 cos_abv_appareance <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean_appearance")
 cos_abv_aroma <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean_aroma")
-cos_abv_overall <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean")
+cos_brewery_overall <- cosTypeFunction(userMap,abvMap,abvIdConfFun,m.vote_abv,"mean")
 
+###############
 ##
-## Méthode ItemItem
+## Méthode Item-Item
 ##
+###############
 
-breweryMap2 <- 0
-breweryMap2 <- matrix(0,nrow=nrow(m.brewery),ncol=1)
-colnames(breweryMap2) <- "index.brewery"
-rownames(breweryMap2) <- sapply(unlist(m.brewery[,"brewery_id"]),function(x) paste("u",x,sep=""))
-breweryMap2[,1] <- seq(1,nrow(m.brewery[,"brewery_id"]),1)
-
-beerMap <- 0
-beerMap <- matrix(0,nrow=nrow(m.beer),ncol=1)
-colnames(beerMap) <- "index.beer"
-rownames(beerMap) <- sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep=""))
-beerMap[,1] <- seq(1,nrow(m.beer[,"beer_beerid"]),1)
-
-beerAndBreweryMap <- sparseMatrix(breweryMap2[sapply(unlist(m.beer[,"brewery_id"]),function(x) paste("u",x,sep="")),"index.brewery"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),"index.beer"],x=1,use.last.ij=TRUE)
-
-beerAndStyleMap <- sparseMatrix(styleMap[unlist(m.beer[,"beer_style"]),"style.id"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),"index.beer"],x=1,use.last.ij=TRUE)
-rowSums(beerAndStyleMap)
-colSums(beerAndStyleMap)
-
-abvMap2 <- 0
-abvMap2 <- matrix(0,nrow=nrow(m.abv),ncol=1)
-colnames(abvMap2) <- "abv.id"
-rownames(abvMap2) <- sapply(unlist(m.abv[,"beer_abv"]),function(x) paste("a",x,sep=""))
-abvMap2[,1] <- seq(1,nrow(m.abv[,"beer_abv"]),1)
-
-beerAndAbvMap <- sparseMatrix(abvMap2[sapply(unlist(m.beer[,"beer_abv"]),function(x) paste("a",round(x),sep="")),"abv.id"],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",round(x),sep="")),"index.beer"],x=1,use.last.ij=TRUE)
-beerAndAbvMap[1:10,1:10]
-
-rowSums(beerAndAbvMap)
-colSums(beerAndAbvMap)
-
-sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep=""))
-
-rowSums(beerAndBrewMap)
-
-
+## Création des matrices creuses de relation entre l'ensemble des bières et les attributs.
+beerAndBreweryMap <- sparseMatrix(breweryMap[sapply(unlist(m.beer[,"brewery_id"]),function(x) paste("u",x,sep="")),1],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),1],x=1,use.last.ij=TRUE)
+beerAndStyleMap <- sparseMatrix(styleMap[unlist(m.beer[,"beer_style"]),1],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",x,sep="")),1],x=1,use.last.ij=TRUE)
+beerAndAbvMap <- sparseMatrix(abvMap[sapply(unlist(m.beer[,"beer_abv"]),function(x) paste("a",round(x),sep="")),1],beerMap[sapply(unlist(m.beer[,"beer_beerid"]),function(x) paste("b",round(x),sep="")),1],x=1,use.last.ij=TRUE)
 
 
 ######### PREDICTION
@@ -269,7 +238,7 @@ numAbv=(voteOfAbv%*%cos_abv_taste%*%beerAndAbvMap)
 denAbv=(typeVoteCountAbv%*%cos_abv_taste%*%beerAndAbvMap)
 
 
-finalPred<-(numBrew+numStyle+50*numAbv)/(denBrew+denStyle+50*denAbv)+rMean_taste
+finalPred<-(numBrew+numStyle+numAbv)/(denBrew+denStyle+denAbv)+rMean_taste
 
 mean(((rMean_taste-m_taste.sparse)**2)[!m_taste.sparse==0])
 
