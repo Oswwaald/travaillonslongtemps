@@ -3,10 +3,10 @@
 
 ## Appel du package Matrix.
 library(Matrix)
-library(dplyr,lib="/home/travail/travaillonslongtemps-master/packages")
+library(dplyr)
 
 ## Récupération de toutes les données.
-m.data <- read.csv('/home/travail/travaillonslongtemps-master/beer_reviews.csv', stringsAsFactors = FALSE)
+m.data <- read.csv('beer_reviews.csv', stringsAsFactors = FALSE)
 m.data <- m.data[m.data[,"review_profilename"]!="",]
 
 ## Extraction des données avec les moyennes de votes.
@@ -17,15 +17,17 @@ m.user <- select(m.data,review_profilename) %>%
 m.beer <- select(m.data,beer_beerid,beer_name,beer_style,beer_abv,brewery_id,review_overall,review_aroma,review_appearance,review_palate,review_taste) %>%
   group_by(beer_beerid,beer_name,beer_style,beer_abv,brewery_id) %>%
   summarise(count=sum(!is.na(beer_beerid)))
-  #En prenant les moyennes de vote dans m.beer.
-  #summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste), count=sum(!is.na(beer_beerid)))
+#En prenant les moyennes de vote dans m.beer.
+#summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste), count=sum(!is.na(beer_beerid)))
 
 ## Réduction des matrices afin de simplifier les calculs et les temps de calculs.......
-#m.user <- filter(m.user, count>300)
+m.user <- filter(m.user, count>1)
 ##### sans filtre : 33387 Users.
-#m.beer <- filter (m.beer, count>300)
+m.beer  <- m.beer[(runif(nrow(m.beer), 0.0, 1.0)>0.9),]
 ##### sans filtre : 66051 Items.
-#m.data <- filter(filter(m.data,review_profilename %in% unlist(m.user["review_profilename"])),beer_beerid %in% unlist(m.beer["beer_beerid"]))
+m.data <- filter(filter(m.data,review_profilename %in% unlist(m.user["review_profilename"])),beer_beerid %in% unlist(m.beer["beer_beerid"]))
+## NA Abv à 0
+m.data[is.na(m.data)] <- 0
 ##### sans filtre : 1 586 614 Observations.
 
 ## Cosinus en fonction du type et du critère évalué.
@@ -113,12 +115,20 @@ rownames(breweryMap) <- sapply(unlist(m.brewery[,"brewery_id"]),toString)
 breweryMap[,1] <- seq(1,nrow(m.brewery[,"brewery_id"]),1)
 
 #################### Mettre usermapbest dans la fonction
+cosTypeFunction2 <- function(data,typeMap,mVoteCriteria,meanCriteria){
+  m_type.sparse <- sparseMatrix(userMap.best[unlist(mVoteCriteria[,"review_profilename"]),],typeMap[sapply(unlist(mVoteCriteria[,2]),toString),],x=unlist(mVoteCriteria[,meanCriteria]),use.last.ij=TRUE)
+  m_type.normalise <- m_type.sparse/(t(matrix(colSums(m_type.sparse**2),nrow=ncol(m_type.sparse),ncol=nrow(m_type.sparse)))**(1/2) )
+  m_type.normalise[is.na(m_type.normalise)]<-0
+  cos_type<-t(m_type.normalise)%*%m_type.normalise
+  cos_type_mat<-matrix(cos_type,nrow=nrow(cos_type),ncol=ncol(cos_type))
+  return (cos_type_mat)
+}
 ## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
-cos_brewery_palate <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_palate")
-cos_brewery_taste <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_taste")
-cos_brewery_appareance <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_appearance")
-cos_brewery_aroma <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_aroma")
-cos_brewery_overall <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean")
+cos_brewery_palate <- cosTypeFunction2(m.data.best,breweryMap,m.vote_brewery,"mean_palate")
+cos_brewery_taste <- cosTypeFunction2(m.data.best,breweryMap,m.vote_brewery,"mean_taste")
+cos_brewery_appareance <- cosTypeFunction2(m.data.best,breweryMap,m.vote_brewery,"mean_appearance")
+cos_brewery_aroma <- cosTypeFunction2(m.data.best,breweryMap,m.vote_brewery,"mean_aroma")
+cos_brewery_overall <- cosTypeFunction2(m.data,breweryMap,m.vote_brewery,"mean")
 
 write.csv(cos_brewery_palate,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_palate.csv", row.names = FALSE)
 write.csv(cos_brewery_taste,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_taste.csv", row.names = FALSE)
@@ -153,9 +163,8 @@ count_brewery <- countFunction(breweryMap,m.vote_brewery,"mean")
 ##
 ## Calcul des matrice creuse des votes sur la moyenne des brasseries.
 ##
-round(5.5)
 m.abv <- select(m.data,beer_abv) %>%
-  group_by(beer_abv=round(beer_abv)) %>%
+  group_by(beer_abv) %>%
   summarise(count=sum(!is.na(beer_abv)))
 
 m.vote_abv <- m.data %>%
@@ -165,7 +174,7 @@ m.vote_abv <- m.data %>%
 abvMap <- 0
 abvMap <- matrix(0,nrow=nrow(m.abv),ncol=1)
 colnames(abvMap) <- "abv.id"
-rownames(abvMap) <- sapply(unlist(m.abv[,"beer_abv"]),round)
+rownames(abvMap) <-(unlist(m.abv[,"beer_abv"]))
 abvMap[,1] <- seq(1,nrow(m.abv[,"beer_abv"]),1)
 
 ## Calcul des cosinus pour les Brasseries avec tous les votes des utilisateurs.
