@@ -234,7 +234,7 @@ userMap[,1]=seq(1,nrow(m.user.rand[,"review_profilename"]),1)
 ######### PREDICTION STYLEEEEEEEEEE
 
 #m_palate.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_palate"],use.last.ij=TRUE)
-m_taste.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_taste"],use.last.ij=TRUE,dims=c(length(userMap),length(beerMap))=
+m_taste.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_taste"],use.last.ij=TRUE,dims=c(length(userMap),length(beerMap)))
 #m_appearance.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_appearance"],use.last.ij=TRUE)
 #m_aroma.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_aroma"],use.last.ij=TRUE)
 #m_overall.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_overall"],use.last.ij=TRUE)
