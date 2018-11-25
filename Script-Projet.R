@@ -1,12 +1,12 @@
 ## Sources des données : https://www.kaggle.com/rdoume/beerreviews
-install.packages('dplyr')
+#install.packages('dplyr',lib="/home/travail/travaillonslongtemps-master/packages")
 
 ## Appel du package Matrix.
 library(Matrix)
-library(dplyr)
+library(dplyr,lib="/home/travail/travaillonslongtemps-master/packages")
 
 ## Récupération de toutes les données.
-m.data <- read.csv('beer_reviews.csv', stringsAsFactors = FALSE)
+m.data <- read.csv('/home/travail/travaillonslongtemps-master/beer_reviews.csv', stringsAsFactors = FALSE)
 m.data <- m.data[m.data[,"review_profilename"]!="",]
 
 ## Extraction des données avec les moyennes de votes.
@@ -21,11 +21,11 @@ m.beer <- select(m.data,beer_beerid,beer_name,beer_style,beer_abv,brewery_id,rev
   #summarise(mean_overall=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste), count=sum(!is.na(beer_beerid)))
 
 ## Réduction des matrices afin de simplifier les calculs et les temps de calculs.......
-m.user <- filter(m.user, count>300)
+#m.user <- filter(m.user, count>300)
 ##### sans filtre : 33387 Users.
-m.beer <- filter (m.beer, count>300)
+#m.beer <- filter (m.beer, count>300)
 ##### sans filtre : 66051 Items.
-m.data <- filter(filter(m.data,review_profilename %in% unlist(m.user["review_profilename"])),beer_beerid %in% unlist(m.beer["beer_beerid"]))
+#m.data <- filter(filter(m.data,review_profilename %in% unlist(m.user["review_profilename"])),beer_beerid %in% unlist(m.beer["beer_beerid"]))
 ##### sans filtre : 1 586 614 Observations.
 
 ## Cosinus en fonction du type et du critère évalué.
@@ -47,7 +47,7 @@ countFunction <- function(typeMap,mVoteCriteria,meanCriteria){
 }
 
 #
-m.data.best <- filter(m.data,review_profilename %in% unlist(m.user["review_profilename"]))
+#m.data.best <- filter(m.data,review_profilename %in% unlist(m.user["review_profilename"]))
 #
 
 userMap <- 0
@@ -63,6 +63,7 @@ m.style <- select(m.data,beer_style) %>%
   group_by(beer_style) %>%
   
   summarise(count=sum(!is.na(beer_style)))
+
 m.vote_style <- m.data %>%
   group_by(review_profilename,beer_style)%>%
   summarise(count=sum(!is.na(review_profilename)),mean=mean(review_overall),mean_aroma=mean(review_aroma),mean_appearance=mean(review_appearance),mean_palate=mean(review_palate),mean_taste=mean(review_taste))
@@ -97,6 +98,9 @@ userMap.best=matrix(0,nrow=nrow(m.user.best),ncol=1)
 rownames(userMap.best)<-unlist(m.user.best[,"review_profilename"])
 userMap.best[,1]=seq(1,nrow(m.user.best[,"review_profilename"]),1)
 
+m.brewery <- select(m.data,brewery_id) %>%
+  group_by(brewery_id) %>%
+  summarise(count=sum(!is.na(brewery_id)))
 
 m.vote_brewery <- m.data.best %>%
   group_by(review_profilename,brewery_id) %>%
@@ -114,13 +118,13 @@ cos_brewery_palate <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mea
 cos_brewery_taste <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_taste")
 cos_brewery_appareance <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_appearance")
 cos_brewery_aroma <- cosTypeFunction(m.data.best,breweryMap,m.vote_brewery,"mean_aroma")
-#cos_brewery_overall <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean_overall")
+cos_brewery_overall <- cosTypeFunction(m.data,breweryMap,m.vote_brewery,"mean")
 
-#write.csv(cos_brewery_palate,"cos_brewery_palate.csv", row.names = FALSE, sep=",")
-#write.csv(cos_brewery_taste,"cos_brewery_taste.csv", row.names = FALSE, sep=",")
-#write.csv(cos_brewery_appareance,"cos_brewery_appareance.csv", row.names = FALSE, sep=",")
-#write.csv(cos_brewery_aroma,"cos_brewery_aroma.csv", row.names = FALSE, sep=",")
-
+write.csv(cos_brewery_palate,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_palate.csv", row.names = FALSE)
+write.csv(cos_brewery_taste,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_taste.csv", row.names = FALSE)
+write.csv(cos_brewery_appareance,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_appareance.csv", row.names = FALSE)
+write.csv(cos_brewery_aroma,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_aroma.csv", row.names = FALSE)
+write.csv(cos_brewery_overall,"/home/travail/travaillonslongtemps-master/saves/cos_brewery_overall.csv", row.names = FALSE)
 
 #User et data pour les brewery Oswald
 m.brewery <- select(m.data,brewery_id) %>%
@@ -219,7 +223,7 @@ rowSums(beerAndBrewMap)
 
 ######### PREDICTION
 
-m.user.rand <- m.user[(runif(nrow(m.user), 0.0, 1.0)>0.8),]
+m.user.rand <- m.user[(runif(nrow(m.user), 0.0, 1.0)>0.995),]
 m.data.rand <- filter(m.data,review_profilename %in% unlist(m.user.rand["review_profilename"]))
 
 userMap=0
@@ -230,7 +234,7 @@ userMap[,1]=seq(1,nrow(m.user.rand[,"review_profilename"]),1)
 ######### PREDICTION STYLEEEEEEEEEE
 
 #m_palate.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_palate"],use.last.ij=TRUE)
-m_taste.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_taste"],use.last.ij=TRUE)
+m_taste.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_taste"],use.last.ij=TRUE,dims=c(length(userMap),length(beerMap))=
 #m_appearance.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_appearance"],use.last.ij=TRUE)
 #m_aroma.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_aroma"],use.last.ij=TRUE)
 #m_overall.sparse <- sparseMatrix(userMap[m.data.rand[,"review_profilename"],],beerMap[sapply(m.data.rand[,"beer_beerid"],function(x) paste("b",x,sep="")),],x=m.data.rand[,"review_overall"],use.last.ij=TRUE)
@@ -243,25 +247,48 @@ m_taste.sparse[is.na(m_taste.sparse)]<-0
 m_taste.sparse.centr[is.na(m_taste.sparse.centr)]<-0
 
 typeVoteCount <- (m_taste.sparse>0) %*% t(beerAndStyleMap)
-voteOfStyle <-(m_taste.sparse.centr %*% t(beerAndStyleMap))/typeVoteCount
+voteOfStyle <-(m_taste.sparse.centr %*% t(beerAndStyleMap))
 voteOfStyle[is.na(voteOfStyle)]<-0
-m_taste.pred<-(voteOfStyle%*%cos_style_taste)/((voteOfStyle>0)%*%cos_style_taste)
-m_taste.pred.final<-m_taste.pred+rMean_taste
+m_taste.pred.style<-(voteOfStyle%*%cos_style_taste%*%beerAndStyleMap)/(typeVoteCount%*%cos_style_taste%*%beerAndStyleMap)
+
+
+
+
+numStyle=(voteOfStyle%*%cos_style_taste%*%beerAndStyleMap)
+denStyle=(typeVoteCount%*%cos_style_taste%*%beerAndStyleMap)
+
+
+
+num<-(voteOfStyle%*%cos_style_taste)
+den<-(typeVoteCount%*%cos_style_taste)
+
+m_taste.pred.final.style<-m_taste.pred.style+rMean_taste
+
+test.taste.style <- sapply(1:nrow(m_taste.pred.final.style),function(x) max(m_taste.pred.final.style[x,])-min(m_taste.pred.final.style[x,]))
+
 
 ######### PREDICTION BRASSERIEEEEEEEEE
 
-rMean_palate <- rowMeans(m_palate.sparse, na.rm=TRUE)
-rMean_palate[is.na(rMean_palate)] <- 0
 
 typeVoteCountBrewery <- (m_taste.sparse>0) %*% t(beerAndBreweryMap)
-voteOfStyleBrewery <-(m_taste.sparse.centr %*% t(beerAndBreweryMap))/typeVoteCountBrewery
-voteOfStyleBrewery[is.na(voteOfStyleBrewery)]<-0
-m_palate.pred.brewery<-(voteOfStyleBrewery%*%cos_brewery_palate)/((voteOfStyleBrewery>0)%*%cos_brewery_palate)
-m_palate.pred.final.brewery<-m_palate.pred.brewery+rMean_palate
+voteOfBrewery <-(m_taste.sparse.centr %*% t(beerAndBreweryMap))
+voteOfBrewery[is.na(voteOfStyleBrewery)]<-0
+m_taste.pred.brewery<-(voteOfBrewery%*%cos_brewery_taste)/(voteOfBrewery%*%cos_brewery_taste)
+
+numBrew=(voteOfBrewery%*%cos_brewery_taste%*%beerAndBreweryMap)
+denBrew=(voteOfBrew%*%cos_brewery_taste%*%beerAndBreweryMap)
+
+typeVoteCountBrewery
+
+truc<-beerAndStyleMap%*%t(beerAndBreweryMap)%*%(cos_brewery_taste==0)%*%beerAndBreweryMap%*%t(beerAndStyleMap)
+
+m_taste.pred.brewery[is.na(m_taste.pred.brewery)]<-0
+
+m_taste.pred.final.brewery<-m_taste.pred.brewery+rMean_taste
 
 
 #Verification ::::
-test <- sapply(1:nrow(m_palate.pred.final.brewery),function(x) max(m_palate.pred.final.brewery[x,])-min(m_palate.pred.final.brewery[x,]))
+test <- sapply(1:nrow(m_taste.pred.final.brewery),function(x) max(m_taste.pred.final.brewery[x,])-min(m_taste.pred.final.brewery[x,]))
 
 ## Identification du nombre de bières et d'utilisateurs différents.
 nbVotesPerBeer <- m.data %>% 
